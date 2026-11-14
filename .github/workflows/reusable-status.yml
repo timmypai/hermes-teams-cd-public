@@ -20,7 +20,7 @@ concurrency:
   group: oracle-sevenbot-test-sevenbot-flow-probe
   cancel-in-progress: false
 env:
-  HELPER_SHA: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+  HELPER_SHA: 74cbd88e1f53d3832be3c4c6c5c8512a0be37249
   SOURCE_SHA: ${{ inputs.source-sha }}
   ARTIFACT_RUN: ${{ inputs.artifact-run }}
   ARTIFACT_ATTEMPT: ${{ inputs.artifact-attempt }}
@@ -42,7 +42,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: timmypai/hermes-teams-cd-public
-          ref: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+          ref: 74cbd88e1f53d3832be3c4c6c5c8512a0be37249
           path: shared
           persist-credentials: false
       - name: Admit fixed protected caller before Oracle scheduling
@@ -64,7 +64,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: timmypai/hermes-teams-cd-public
-          ref: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+          ref: 74cbd88e1f53d3832be3c4c6c5c8512a0be37249
           path: shared
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093

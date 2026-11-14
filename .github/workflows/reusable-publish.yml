@@ -11,7 +11,7 @@ concurrency:
   group: oracle-sevenbot-test-sevenbot-flow-probe
   cancel-in-progress: false
 env:
-  HELPER_SHA: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+  HELPER_SHA: 74cbd88e1f53d3832be3c4c6c5c8512a0be37249
   SOURCE_SHA: ${{ inputs.source-sha }}
   PYTHONPYCACHEPREFIX: ${{ github.workspace }}/bytecode
 jobs:
@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: timmypai/hermes-teams-cd-public
-          ref: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+          ref: 74cbd88e1f53d3832be3c4c6c5c8512a0be37249
           path: shared
           persist-credentials: false
       - name: Fail closed BEFORE privileged scheduling
@@ -41,7 +41,7 @@ jobs:
     needs: admit
     if: needs.admit.result == 'success'
     environment: oracle-sevenbot-test
-    runs-on: [self-hosted, Linux, ARM64, sevenbot-isolated]
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
     permissions:
       contents: read
@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: timmypai/hermes-teams-cd-public
-          ref: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+          ref: 74cbd88e1f53d3832be3c4c6c5c8512a0be37249
           path: shared
           persist-credentials: false
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -71,6 +71,7 @@ jobs:
           path: |
             evidence/image.tar
             evidence/provenance.json
+            evidence/native.json
           if-no-files-found: error
           retention-days: 7
       - name: Retain publication receipt even on failure

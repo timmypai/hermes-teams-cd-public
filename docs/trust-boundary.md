@@ -4,8 +4,13 @@ Public PR code runs only on fixed standard GitHub-hosted ubuntu-24.04. No input 
 runner, environment, repository mapping, helper source, command, interpreter, target,
 port or production shell. Only exact named workflow_dispatch callers on protected
 reviewed public CD main may request operations. Hosted admission must succeed BEFORE
-isolated scheduling; activation is currently UNBOUND in trusted code, not a caller flag.
-The public runner security stage is separately DEFERRED/NOT_VERIFIED.
+isolated host scheduling; host activation remains UNBOUND in trusted code, not a
+caller flag. Publication alone uses a separate fixed reviewed binding and standard
+public ubuntu-24.04-arm, never the Oracle host adapter. It rechecks current protected
+reviewed main, distinct exact-head approval/ci, fixed accepted app bytes and actual
+hosted/native context before its local disposable build daemon. All host operations
+still require ACTIVATION and the unchanged rootless wrapper. The isolated public
+runner security stage remains separately DEFERRED/NOT_VERIFIED.
 
 Strict stdlib JSON validation and the closed schema reject duplicate/unknown/missing
 keys, type substitutions and unsafe command/path/ref/target changes. The named pilot is

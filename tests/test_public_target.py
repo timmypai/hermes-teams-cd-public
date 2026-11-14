@@ -15,7 +15,7 @@ import delivery as d
 
 PUBLIC = 'timmypai/hermes-teams-cd-public'
 PRIVATE = PUBLIC.removesuffix('-public')
-HELPER = '4d92b63e419eb4a1db5ccf28b1d06779a53a55ac'
+HELPER = '74cbd88e1f53d3832be3c4c6c5c8512a0be37249'
 SEED = '0c9c61c5cf9d8f7e611e5e5c6b328f7ebb8b4ae1'
 APP = 'eb3c70b0b520a955a014ea883c137db604ec0492'
 OPERATIONS = ('ci', 'publish', 'deploy', 'health', 'rollback', 'status')
@@ -62,7 +62,9 @@ class PublicTarget(unittest.TestCase):
         self.assertEqual(git('rev-list', '--max-parents=0', 'HEAD'), SEED)
         self.assertEqual(set(git('ls-tree', '-r', '--name-only', SEED).splitlines()),
             {'README.md', '.gitignore', 'docs/public-source-provenance.md'})
-        self.assertEqual(git('rev-parse', HELPER+'^'), SEED)
+        self.assertEqual(git('rev-parse', '4d92b63e419eb4a1db5ccf28b1d06779a53a55ac^'), SEED)
+        self.assertEqual(git('merge-base', '--is-ancestor',
+                             '4d92b63e419eb4a1db5ccf28b1d06779a53a55ac', HELPER), '')
         self.assertEqual(git('merge-base', '--is-ancestor', HELPER, 'HEAD'), '')
         for sha in ('a238cea4f2b763db21411ecd656cf8cb9e36abbd',
                     '4295d21ced3a02ef2b82c60f07eb6abcbb3edab9'):
@@ -84,6 +86,7 @@ class PublicTarget(unittest.TestCase):
             'delivery.py','host-preflight.sh','readback-isolated-host.sh','status_readback.py','workflow_entry.py')}
         allowed |= {'tests/test_'+n+'.py' for n in ('cd_safety','delivery_operations','host_bootstrap',
             'revision2','transition_safety','workflow_contracts','workflow_entry','public_target')}
+        allowed |= {'docker/Dockerfile', 'scripts/publication_build.py', 'tests/test_arm64_publication.py'}
         self.assertEqual(set(git('ls-files').splitlines()), allowed)
         forbidden = re.compile(r'-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----|'
             r'gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|'

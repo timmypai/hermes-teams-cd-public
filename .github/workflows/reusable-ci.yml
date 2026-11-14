@@ -10,7 +10,7 @@ permissions:
 # This immutable helper commit is selected by this shared workflow VERSION.
 # It is deliberately NOT github.workflow_sha (which belongs to the caller).
 env:
-  HELPER_SHA: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+  HELPER_SHA: 74cbd88e1f53d3832be3c4c6c5c8512a0be37249
   SOURCE_SHA: ${{ inputs.source-sha }}
   PYTHONPYCACHEPREFIX: ${{ github.workspace }}/bytecode
 jobs:
@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: timmypai/hermes-teams-cd-public
-          ref: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+          ref: 74cbd88e1f53d3832be3c4c6c5c8512a0be37249
           path: shared
           persist-credentials: false
       - name: Validate caller and immutable input before application checkout
