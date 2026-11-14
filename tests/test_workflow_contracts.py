@@ -51,7 +51,8 @@ def validate_consumer(operation, text):
         f"github.workflow_ref == 'timmypai/hermes-teams-cd-public/.github/workflows/{operation}.yml@refs/heads/main'",
         'HELPER_SHA: ' + HELPER, 'needs: admit', "if: needs.admit.result == 'success'",
         'environment: oracle-sevenbot-test',
-        'runs-on: [self-hosted, Linux, ARM64, sevenbot-isolated]',
+        ('runs-on: ubuntu-24.04-arm' if operation == 'publish' else
+         'runs-on: [self-hosted, Linux, ARM64, sevenbot-isolated]'),
         'group: oracle-sevenbot-test-sevenbot-flow-probe', 'cancel-in-progress: false',
         f'run: python3 shared/scripts/workflow_entry.py gate {operation}',
         f'run: python3 shared/scripts/workflow_entry.py run {operation}']
@@ -59,13 +60,14 @@ def validate_consumer(operation, text):
         raise ValueError('consumer admission/binding contract mismatch')
     if set(re.findall(r'          ref: ([0-9a-f]{40})', text)) != {HELPER}:
         raise ValueError('consumer helper checkout mismatch')
-    if text.index(f'gate {operation}') > text.index('runs-on: [self-hosted'):
-        raise ValueError('host scheduled before admission')
+    if text.index(f'gate {operation}') > text.index(
+            'runs-on: ubuntu-24.04-arm' if operation == 'publish' else 'runs-on: [self-hosted'):
+        raise ValueError('build/host scheduled before admission')
     if 'secrets: inherit' in text or 'pull_request' + '_target:' in text:
         raise ValueError('privileged public route')
 
 ROOT = Path(__file__).resolve().parents[1]
-HELPER = '4d92b63e419eb4a1db5ccf28b1d06779a53a55ac'
+HELPER = '74cbd88e1f53d3832be3c4c6c5c8512a0be37249'
 PINS = {'actions/checkout':'11d5960a326750d5838078e36cf38b85af677262',
     'actions/upload-artifact':'ea165f8d65b6e75b540449e92b4886f43607fa02',
     'actions/download-artifact':'d3f86a106a0bac45b974a628896c90dbdf5c8093'}
@@ -79,7 +81,8 @@ class WorkflowContracts(unittest.TestCase):
             self.assertEqual(set(re.findall(r'          ref: ([0-9a-f]{40})', text)), {HELPER})
             self.assertNotIn('github.workflow_sha', text.split('env:')[-1])
         for path in ('scripts/delivery.py','scripts/workflow_entry.py','scripts/status_readback.py',
-                     'config/project.schema.json','config/projects/sevenbot-flow-probe.json'):
+                     'config/project.schema.json','config/projects/sevenbot-flow-probe.json',
+                     'scripts/publication_build.py','docker/Dockerfile'):
             result = subprocess.run(['git','show',f'{HELPER}:{path}'], cwd=ROOT,
                 capture_output=True, timeout=10)
             self.assertEqual(result.returncode,0)
@@ -201,7 +204,8 @@ class WorkflowContracts(unittest.TestCase):
                     docker.assert_not_called()
                     api.assert_not_called()
             with patch.dict(os.environ, good, clear=True), patch.object(delivery, 'command', side_effect=[HELPER, '']), patch.object(sys, 'argv', ['workflow_entry.py', 'gate', operation]), patch.object(delivery, 'docker') as docker, patch.object(delivery, 'github_get') as api:
-                with self.assertRaisesRegex(ValueError, 'UNBOUND'):
+                with self.assertRaisesRegex(ValueError,
+                        'unapproved publication source/revision' if operation == 'publish' else 'UNBOUND'):
                     entry.main()
                 docker.assert_not_called()
                 api.assert_not_called()

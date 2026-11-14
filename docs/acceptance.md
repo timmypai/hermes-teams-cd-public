@@ -43,8 +43,26 @@ the authorized controller, never an Actions Kanban mutation.
 Host/runner security is DEFERRED/NOT_VERIFIED, not a common source/hosted-CI prerequisite.
 Both installers remain failclosed exit78 for aggregate storage enforcement covering
 mapped subordinate-UID Docker data plus runner/job temporary stores under <=4GiB.
-No installer, host mutation, application publication/deployment/health/rollback or
-production access is authorized by this source phase. Activation remains UNBOUND and
-no qualified Dockerfile/image is supplied. Image/native ARM64, installation, actual
-version/function health, A-to-B-to-A rollback, fresh status/API, second-repo lifecycle,
-full requirement mapping, voice, disconnect and soak remain separately unverified.
+No installer, host mutation, application deployment/health/rollback or production
+access is authorized by source review. Host ACTIVATION remains UNBOUND. A real
+Dockerfile with qualified immutable official ARM64 base and a dedicated hosted
+publication route are supplied; local tests do not prove an image was built.
+Image/native ARM64, installation, actual version/function health, A-to-B-to-A
+rollback, fresh status/API, second-repo lifecycle, full requirement mapping, voice,
+disconnect and soak remain separately unverified until real stage evidence.
+
+## Image publication acceptance
+
+After new exact-head source review, PR/required CI/forge approval/protected merge
+and automatic main CI, the controller may admit one fixed first-attempt dispatch
+per reviewed version. Reconcile existing runs/artifacts first. Qualify the real
+public standard ARM64 runner, current environment/main protections and free
+artifact storage/retention before dispatch; public compute is not a storage grant.
+The workflow limits its uncompressed archive to 256MiB and retention to seven days.
+Accept only actual native uname, daemon/image inspect, executable version/health/
+function smoke, cleanup and immutable image archive/provenance/native receipt.
+Obtain real artifact ID/digest/size/retention, download and independently verify
+archive SHA256. Schema1 provenance stays compatible with existing consumers;
+native.json is additive separate evidence. Local fake command/HTTP fixtures and
+source CI do not pass these gates. No source-only native completion of an image
+card; repo NONFORCE acceptance plus commissioned image proof are both required.
