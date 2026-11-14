@@ -1,0 +1,31 @@
+name: Protected health
+on:
+  workflow_dispatch:
+    inputs:
+      source-sha:
+        required: true
+        type: string
+      artifact-run:
+        required: true
+        type: string
+      artifact-attempt:
+        required: true
+        type: string
+      revision:
+        required: true
+        type: choice
+        options: [flow-probe-v1, flow-probe-v2]
+permissions:
+  contents: read
+  actions: read
+  checks: read
+  pull-requests: read
+jobs:
+  health:
+    if: github.repository == 'timmypai/hermes-teams-cd-public' && github.ref == 'refs/heads/main' && github.run_attempt == 1 && github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/reusable-health.yml
+    with:
+      source-sha: ${{ inputs.source-sha }}
+      artifact-run: ${{ inputs.artifact-run }}
+      artifact-attempt: ${{ inputs.artifact-attempt }}
+      revision: ${{ inputs.revision }}

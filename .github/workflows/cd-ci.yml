@@ -1,0 +1,43 @@
+name: Public CD source CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          # Tests compare helper bytes at the immutable ancestor, not only HEAD.
+          fetch-depth: 0
+      - name: Prepare exclusively owned local test directories
+        run: mkdir -p ../fixtures ../caches ../reports
+      - name: Mandatory public source safety suite
+        env:
+          TMPDIR: ${{ github.workspace }}/../fixtures
+          PYTHONPYCACHEPREFIX: ${{ github.workspace }}/../caches/pycache
+        run: timeout 600 python3 -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Shell syntax only (never execute bootstrap)
+        run: bash -n scripts/bootstrap-test-account.sh scripts/bootstrap-rootless-runner.sh scripts/host-preflight.sh scripts/readback-isolated-host.sh
+  app-tests:
+    uses: ./.github/workflows/reusable-ci.yml
+    with:
+      # Previously accepted application main; this repository never writes the app.
+      source-sha: eb3c70b0b520a955a014ea883c137db604ec0492
+  ci:
+    name: ci
+    needs: [validate, app-tests]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Preserve exact required context and fail closed
+        env:
+          VALIDATION_RESULT: ${{ needs.validate.result }}
+          APP_RESULT: ${{ needs.app-tests.result }}
+        run: test "$VALIDATION_RESULT" = success && test "$APP_RESULT" = success
