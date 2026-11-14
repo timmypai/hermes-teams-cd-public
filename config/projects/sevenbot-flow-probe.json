@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "project": "sevenbot-flow-probe",
+  "source_repo": "timmypai/hermes-teams",
+  "source_branch": "main",
+  "source_path": "apps/sevenbot-flow-probe",
+  "test": ["python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_flow_probe*.py", "-v"],
+  "dockerfile": "docker/Dockerfile",
+  "image": "sevenbot-flow-probe",
+  "runner": "sevenbot-isolated",
+  "environment": "oracle-sevenbot-test",
+  "service": "sevenbot-flow-probe",
+  "port": 18080,
+  "health": {"version_path": "/version", "health_path": "/healthz", "function_path": "/", "timeout_seconds": 5},
+  "rollback": {"require_known_healthy": true, "max_attempts": 1},
+  "status": {"max_age_seconds": 300, "max_runs": 3},
+  "secret_references": [],
+  "protection": {"exact_head_review": true, "trusted_main_only": true, "environment_approval": true},
+  "budget": {"job_seconds": 600, "initial": 1, "forward": 1, "rollback": 1}
+}

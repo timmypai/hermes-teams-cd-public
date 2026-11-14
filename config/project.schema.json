@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sevenbot:project:v1",
+  "title": "Approved isolated pilot binding, not future resource authority",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project", "source_repo", "source_branch", "source_path", "test", "dockerfile", "image", "runner", "environment", "service", "port", "health", "rollback", "status", "secret_references", "protection", "budget"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "project": {"const": "sevenbot-flow-probe"},
+    "source_repo": {"const": "timmypai/hermes-teams"},
+    "source_branch": {"const": "main"},
+    "source_path": {"const": "apps/sevenbot-flow-probe"},
+    "test": {"const": ["python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_flow_probe*.py", "-v"]},
+    "dockerfile": {"const": "docker/Dockerfile"},
+    "image": {"const": "sevenbot-flow-probe"},
+    "runner": {"const": "sevenbot-isolated"},
+    "environment": {"const": "oracle-sevenbot-test"},
+    "service": {"const": "sevenbot-flow-probe"},
+    "port": {"const": 18080},
+    "health": {"const": {"version_path": "/version", "health_path": "/healthz", "function_path": "/", "timeout_seconds": 5}},
+    "rollback": {"const": {"require_known_healthy": true, "max_attempts": 1}},
+    "status": {"const": {"max_age_seconds": 300, "max_runs": 3}},
+    "secret_references": {"const": []},
+    "protection": {"const": {"exact_head_review": true, "trusted_main_only": true, "environment_approval": true}},
+    "budget": {"const": {"job_seconds": 600, "initial": 1, "forward": 1, "rollback": 1}}
+  }
+}
