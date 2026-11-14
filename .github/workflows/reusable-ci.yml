@@ -1,0 +1,49 @@
+name: Reusable application CI
+on:
+  workflow_call:
+    inputs:
+      source-sha:
+        required: true
+        type: string
+permissions:
+  contents: read
+# This immutable helper commit is selected by this shared workflow VERSION.
+# It is deliberately NOT github.workflow_sha (which belongs to the caller).
+env:
+  HELPER_SHA: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+  SOURCE_SHA: ${{ inputs.source-sha }}
+  PYTHONPYCACHEPREFIX: ${{ github.workspace }}/bytecode
+jobs:
+  ci:
+    if: >-
+      (github.repository == 'timmypai/hermes-teams' || github.repository == 'timmypai/hermes-teams-cd-public') &&
+      (github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Retrieve version-matched shared helpers (not caller scripts)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: timmypai/hermes-teams-cd-public
+          ref: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+          path: shared
+          persist-credentials: false
+      - name: Validate caller and immutable input before application checkout
+        run: python3 shared/scripts/workflow_entry.py gate ci
+      - name: Retrieve application on hosted runner only
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: timmypai/hermes-teams
+          ref: ${{ inputs.source-sha }}
+          path: app
+          persist-credentials: false
+      - name: Execute bounded application test argv
+        run: python3 shared/scripts/workflow_entry.py run ci
+      - name: Preserve actual CI evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ci-${{ github.run_id }}-${{ github.run_attempt }}
+          path: evidence/
+          if-no-files-found: error
+          retention-days: 7

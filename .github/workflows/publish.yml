@@ -1,0 +1,17 @@
+name: Protected publish
+on:
+  workflow_dispatch:
+    inputs:
+      source-sha:
+        required: true
+        type: string
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+jobs:
+  publish:
+    if: github.repository == 'timmypai/hermes-teams-cd-public' && github.ref == 'refs/heads/main' && github.run_attempt == 1 && github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/reusable-publish.yml
+    with:
+      source-sha: ${{ inputs.source-sha }}

@@ -1,0 +1,118 @@
+name: Reusable protected rollback
+on:
+  workflow_call:
+    inputs:
+      source-sha:
+        required: true
+        type: string
+      artifact-run:
+        required: true
+        type: string
+      artifact-attempt:
+        required: true
+        type: string
+      revision:
+        required: true
+        type: string
+      previous-run:
+        required: true
+        type: string
+      previous-attempt:
+        required: true
+        type: string
+      known-run:
+        required: true
+        type: string
+      known-attempt:
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: oracle-sevenbot-test-sevenbot-flow-probe
+  cancel-in-progress: false
+env:
+  HELPER_SHA: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+  SOURCE_SHA: ${{ inputs.source-sha }}
+  ARTIFACT_RUN: ${{ inputs.artifact-run }}
+  ARTIFACT_ATTEMPT: ${{ inputs.artifact-attempt }}
+  REVISION: ${{ inputs.revision }}
+  PREVIOUS_RUN: ${{ inputs.previous-run }}
+  PREVIOUS_ATTEMPT: ${{ inputs.previous-attempt }}
+  KNOWN_RUN: ${{ inputs.known-run }}
+  KNOWN_ATTEMPT: ${{ inputs.known-attempt }}
+  PYTHONPYCACHEPREFIX: ${{ github.workspace }}/bytecode
+jobs:
+  admit:
+    if: >-
+      github.repository == 'timmypai/hermes-teams-cd-public' && github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' && github.run_attempt == 1 &&
+      github.workflow_ref == 'timmypai/hermes-teams-cd-public/.github/workflows/rollback.yml@refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: timmypai/hermes-teams-cd-public
+          ref: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+          path: shared
+          persist-credentials: false
+      - name: Validate historical source, receipts and activation before Oracle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 shared/scripts/workflow_entry.py gate rollback
+  rollback:
+    needs: admit
+    if: needs.admit.result == 'success'
+    environment: oracle-sevenbot-test
+    runs-on: [self-hosted, Linux, ARM64, sevenbot-isolated]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: timmypai/hermes-teams-cd-public
+          ref: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+          path: shared
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          repository: timmypai/hermes-teams-cd-public
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.artifact-run }}
+          name: image-${{ inputs.artifact-run }}-${{ inputs.artifact-attempt }}
+          path: artifact
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          repository: timmypai/hermes-teams-cd-public
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.previous-run }}
+          name: operation-${{ inputs.previous-run }}-${{ inputs.previous-attempt }}
+          path: previous
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          repository: timmypai/hermes-teams-cd-public
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.known-run }}
+          name: operation-${{ inputs.known-run }}-${{ inputs.known-attempt }}
+          path: known
+      - name: Restore qualified known-healthy image and verify real function
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 shared/scripts/workflow_entry.py run rollback
+      - name: Preserve rollback/recovery/failure receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: operation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: evidence/*.json
+          if-no-files-found: error
+          retention-days: 7

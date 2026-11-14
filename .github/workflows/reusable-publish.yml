@@ -1,0 +1,83 @@
+name: Reusable immutable publication
+on:
+  workflow_call:
+    inputs:
+      source-sha:
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: oracle-sevenbot-test-sevenbot-flow-probe
+  cancel-in-progress: false
+env:
+  HELPER_SHA: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+  SOURCE_SHA: ${{ inputs.source-sha }}
+  PYTHONPYCACHEPREFIX: ${{ github.workspace }}/bytecode
+jobs:
+  admit:
+    if: >-
+      github.repository == 'timmypai/hermes-teams-cd-public' && github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' && github.run_attempt == 1 &&
+      github.workflow_ref == 'timmypai/hermes-teams-cd-public/.github/workflows/publish.yml@refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: timmypai/hermes-teams-cd-public
+          ref: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+          path: shared
+          persist-credentials: false
+      - name: Fail closed BEFORE privileged scheduling
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 shared/scripts/workflow_entry.py gate publish
+  publish:
+    needs: admit
+    if: needs.admit.result == 'success'
+    environment: oracle-sevenbot-test
+    runs-on: [self-hosted, Linux, ARM64, sevenbot-isolated]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: timmypai/hermes-teams-cd-public
+          ref: 4d92b63e419eb4a1db5ccf28b1d06779a53a55ac
+          path: shared
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: timmypai/hermes-teams
+          ref: ${{ inputs.source-sha }}
+          path: app
+          persist-credentials: false
+      - name: Build native ARM64 and archive exact image with provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 shared/scripts/workflow_entry.py run publish
+      - name: Publish immutable archive (no mutable latest or registry discovery)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: image-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            evidence/image.tar
+            evidence/provenance.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Retain publication receipt even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: evidence/provenance.json
+          if-no-files-found: error
+          retention-days: 7
