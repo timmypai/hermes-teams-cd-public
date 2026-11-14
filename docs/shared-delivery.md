@@ -2,9 +2,13 @@
 
 Source repository: `timmypai/hermes-teams-cd-public`. Fresh sanitized ancestry,
 not private history. Consumers pin one separately frozen helper ancestor; its
-literal SHA is `74cbd88e1f53d3832be3c4c6c5c8512a0be37249`. Helper/workflow SHAs are
+literal SHA is `61735e88d27170439de9e2210b9748f9bf68795f`. Helper/workflow SHAs are
 distinct. All six reusable workflows must retrieve matching helper bytes,
 including publication_build.py and docker/Dockerfile, from that pinned revision.
+The helper is the already protected-merged public main version, with identical
+seven implementation inputs to the prior reviewed helper. Incremental consumers
+must descend from this helper; a production squash retains that accepted-main
+parent. A synthetic PR merge or equal source tree alone does not prove lineage.
 
 ## Hosted CI
 
@@ -37,10 +41,12 @@ Immutable `image-{run}-{attempt}` contains image.tar, schema1 provenance.json an
 separate native.json (base/platform/smoke/size mapping). No schema1 consumer change.
 Archive capped at 256MiB before upload, seven-day retention, no registry/cache or
 packages:write. Standard public compute is free per GitHub documentation; that
-is NOT proof of artifact storage allowance. Before any dispatch the owner must
-qualify actual free artifact storage/retention eligibility and current protections,
-including the existing oracle-sevenbot-test environment. No automatic spending,
-protection edits or metered overage is authorized. Actual archive size/digest,
+is NOT proof of artifact storage allowance. The User waived billing/pooled-storage
+and zero-charge evidence as a prepublication prerequisite; no such allowance or
+zero-charge result is asserted. Current repository/environment protections,
+including oracle-sevenbot-test, still require verification before dispatch.
+Existing platform quota/billing rejection stops the operation. No new paid
+resource, spending/budget change or protection edit is authorized. Actual size/digest,
 upload/download and independent hash verification remain release evidence.
 
 ## Host operations remain UNBOUND

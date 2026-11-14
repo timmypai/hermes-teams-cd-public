@@ -67,7 +67,7 @@ def validate_consumer(operation, text):
         raise ValueError('privileged public route')
 
 ROOT = Path(__file__).resolve().parents[1]
-HELPER = '74cbd88e1f53d3832be3c4c6c5c8512a0be37249'
+HELPER = '61735e88d27170439de9e2210b9748f9bf68795f'
 PINS = {'actions/checkout':'11d5960a326750d5838078e36cf38b85af677262',
     'actions/upload-artifact':'ea165f8d65b6e75b540449e92b4886f43607fa02',
     'actions/download-artifact':'d3f86a106a0bac45b974a628896c90dbdf5c8093'}
