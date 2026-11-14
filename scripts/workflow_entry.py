@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import sys
 import delivery as d
+import publication_build
 
 
 def inputs(operation):
@@ -52,10 +53,16 @@ def main():
     options = parser.parse_args()
     args, c = inputs(options.operation)
     if options.operation != 'ci':
-        # Deliberately cannot be changed by config, caller, secret or environment.
-        d.require_activation()
+        if options.operation == 'publish':
+            publication_build.admit(args, c)
+        else:
+            # Host operations remain UNBOUND; publication does not activate them.
+            d.require_activation()
         d.source_gate(args.source, historical=options.operation in ('rollback', 'health', 'status'))
     if options.phase == 'gate':
+        return
+    if options.operation == 'publish':
+        publication_build.publish(args, c)
         return
     evidence = Path('evidence')
     d.need(not evidence.exists() and not evidence.is_symlink(), 'existing evidence: stop')
@@ -69,8 +76,6 @@ def main():
         d.write_receipt(evidence, 'ci.json', dict(source_sha=args.source, helper_sha=args.shared,
                         run_id=c['run_id'], run_attempt=c['attempt'], exit_code=result.returncode))
         d.need(result.returncode == 0, 'application tests failed')
-    elif options.operation == 'publish':
-        d.publish(args, c)
     else:
         d.operate(args, c)
 
