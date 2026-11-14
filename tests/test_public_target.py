@@ -192,8 +192,15 @@ class ProtectedMainTopology(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.repo = Path(self.temp.name)
         self.run_git('init', '--quiet')
-        # Fetch only these existing public objects into an exclusively owned repo.
-        self.run_git('fetch', '--quiet', '--no-tags', str(ROOT), HELPER, self.OLD_HELPER)
+        # Only accepted main ancestry is guaranteed in a production checkout.
+        self.run_git('fetch', '--quiet', '--no-tags', str(ROOT), HELPER)
+        # A deliberately untrusted local sibling has identical helper bytes but
+        # is NOT the historical74 object and does not claim historical custody.
+        # Its real Git graph exercises discarded-feature semantics without
+        # requiring any obsolete feature object/ref in the source checkout.
+        self.discarded_feature = self.run_git('commit-tree',
+            self.run_git('rev-parse', HELPER+'^{tree}'), '-p', self.SANITIZED,
+            data='local discarded-feature negative control, not historical74\n')
         self.run_git('read-tree', HELPER)
         # Build the actual selected snapshot's tree without modifying that source.
         for path in git('ls-files').splitlines():
@@ -242,18 +249,25 @@ class ProtectedMainTopology(unittest.TestCase):
                 self.validate(head)
 
     def test_same_tree_does_not_preserve_discarded_feature_helper(self):
-        # The actual protected merge has the reviewed09 tree, not feature74's
-        # consumer tree. Their seven helper inputs, however, are exactly equal.
+        # Equal helper inputs cannot make a discarded sibling an ancestor or a
+        # trusted version. Literal historical74 pins are rejected independently.
         for path in self.INPUTS:
             self.assertEqual(self.run_git('ls-tree', HELPER, '--', path),
-                self.run_git('ls-tree', self.OLD_HELPER, '--', path))
-        self.assertEqual(self.run_git('merge-base', '--is-ancestor', self.OLD_HELPER,
+                self.run_git('ls-tree', self.discarded_feature, '--', path))
+        self.assertEqual(self.run_git('merge-base', '--is-ancestor', self.discarded_feature,
             HELPER, check=False), '1')
-        self.assertEqual(self.run_git('merge-base', '--is-ancestor', self.OLD_HELPER,
+        self.assertEqual(self.run_git('merge-base', '--is-ancestor', self.discarded_feature,
             self.squash, check=False), '1')
-        with self.assertRaisesRegex(AssertionError, 'wrong trusted helper'):
-            self.validate(self.squash, self.OLD_HELPER)
+        self.assertEqual(self.run_git('merge-base', '--is-ancestor', HELPER,
+            self.discarded_feature, check=False), '1')
+        for untrusted in (self.discarded_feature, self.OLD_HELPER):
+            with self.subTest(helper=untrusted), self.assertRaisesRegex(AssertionError, 'wrong trusted helper'):
+                self.validate(self.squash, untrusted)
+        # Correct bytes on the wrong lineage must also fail with the trusted pin.
+        with self.assertRaises(AssertionError):
+            self.validate(self.discarded_feature)
         self.assertEqual(self.run_git('merge-base', '--is-ancestor', HELPER, self.squash), '')
+        self.validate(self.squash)
 
     def test_foreign_root_and_byte_substitution_rejected(self):
         foreign = self.commit(self.tree)
@@ -284,6 +298,65 @@ class ProtectedMainTopology(unittest.TestCase):
                 with self.subTest(operation=operation), self.assertRaises(ValueError):
                     public_workflow(changed)
         self.validate(self.squash)
+
+
+class CleanProductionCheckout(unittest.TestCase):
+    """Run the topology contract from a checkout containing only main ancestry.
+
+    This is also an author-owned RED harness: PUBLIC_TARGET_TEST_ROOT may name
+    an immutable old snapshot, while this regression's bytes remain unchanged.
+    The nested selection is deliberately nonrecursive, not a reduced CI suite.
+    """
+    run_git = ProtectedMainTopology.run_git
+    commit = ProtectedMainTopology.commit
+
+    def test_default_topology_contract_without_discarded_feature_objects(self):
+        fixtures = ROOT.parent/'fixtures'
+        fixtures.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='clean-public-main-', dir=fixtures) as temp:
+            self.repo = Path(temp)/'source'
+            self.repo.mkdir()
+            self.run_git('init', '--quiet')
+            self.run_git('fetch', '--quiet', '--no-tags', str(ROOT), HELPER)
+            self.run_git('read-tree', HELPER)
+            # Export tracked working bytes/modes only, never candidate Git objects.
+            for entry in git('ls-files', '--stage').splitlines():
+                metadata, path = entry.split('\t')
+                mode, _, stage = metadata.split()
+                self.assertEqual((mode, stage), ('100644', '0'))
+                self.assertFalse((ROOT/path).is_symlink())
+                blob = self.run_git('hash-object', '-w', '--stdin', data=(ROOT/path).read_text())
+                self.run_git('update-index', '--add', '--cacheinfo', mode, blob, path)
+            tree = self.run_git('write-tree')
+            # Fixture must be the selected snapshot, not an approximation of it.
+            self.assertEqual(tree, git('rev-parse', 'HEAD^{tree}'))
+            squash = self.commit(tree, HELPER)
+            self.run_git('update-ref', 'refs/heads/main', squash)
+            self.run_git('symbolic-ref', 'HEAD', 'refs/heads/main')
+            self.run_git('checkout-index', '--all')
+            self.assertEqual(self.run_git('status', '--porcelain=v1'), '')
+            self.assertEqual(self.run_git('show', '-s', '--format=%P', 'HEAD'), HELPER)
+            self.assertEqual(self.run_git('ls-tree', '-r', 'HEAD'), git('ls-tree', '-r', 'HEAD'))
+            self.assertEqual(self.run_git('rev-list', 'HEAD'),
+                             squash+'\n'+git('rev-list', HELPER))
+            for absent in (ProtectedMainTopology.OLD_HELPER, git('rev-parse', 'HEAD')):
+                self.assertNotEqual(self.run_git('cat-file', '-e', absent+'^{commit}',
+                                               check=False), '0')
+            env = dict(os.environ)
+            env.pop('PUBLIC_TARGET_TEST_ROOT', None)
+            # A valid ancestry/seed/private-history control must pass BEFORE the
+            # portability assertion, including against the immutable failed tree.
+            for selection in ('test_fresh_seed_ancestry_and_no_imported_private_history',
+                              'ProtectedMainTopology'):
+                argv = [sys.executable, '-m', 'unittest', 'discover', '-s', 'tests',
+                        '-p', 'test_public_target.py', '-k', selection, '-v']
+                result = subprocess.run(argv, cwd=self.repo, env=env,
+                    capture_output=True, text=True, timeout=60)
+                print('CLEAN_MAIN', str(self.repo), repr(argv), 'exit', result.returncode,
+                      'stdout', repr(result.stdout), 'stderr', repr(result.stderr), flush=True)
+                self.assertEqual(result.returncode, 0,
+                    'clean main contract failed: '+selection+'\n'+result.stderr)
+            self.assertEqual(self.run_git('status', '--porcelain=v1'), '')
 
 
 if __name__ == '__main__':
