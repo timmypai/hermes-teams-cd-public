@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -15,7 +16,7 @@ import delivery as d
 
 PUBLIC = 'timmypai/hermes-teams-cd-public'
 PRIVATE = PUBLIC.removesuffix('-public')
-HELPER = '74cbd88e1f53d3832be3c4c6c5c8512a0be37249'
+HELPER = '61735e88d27170439de9e2210b9748f9bf68795f'
 SEED = '0c9c61c5cf9d8f7e611e5e5c6b328f7ebb8b4ae1'
 APP = 'eb3c70b0b520a955a014ea883c137db604ec0492'
 OPERATIONS = ('ci', 'publish', 'deploy', 'health', 'rollback', 'status')
@@ -155,6 +156,134 @@ class PublicTarget(unittest.TestCase):
                 else:
                     with self.assertRaises(ValueError): d.source_gate(source)
                 docker.assert_not_called()
+
+
+class ProtectedMainTopology(unittest.TestCase):
+    """Real public Git objects and production-style parents, never mocked ancestry.
+
+    The read-only ROOT override runs these identical assertions on the failed
+    protected-main tree. Fixture commits are local test objects, not releases.
+    """
+    OLD_HELPER = '74cbd88e1f53d3832be3c4c6c5c8512a0be37249'
+    SANITIZED = '4d92b63e419eb4a1db5ccf28b1d06779a53a55ac'
+    INPUTS = ('scripts/delivery.py', 'scripts/workflow_entry.py',
+        'scripts/status_readback.py', 'config/project.schema.json',
+        'config/projects/sevenbot-flow-probe.json',
+        'scripts/publication_build.py', 'docker/Dockerfile')
+
+    def run_git(self, *args, data=None, check=True):
+        result = subprocess.run(['git', *args], cwd=self.repo,
+            input=data, capture_output=True, text=True, timeout=10,
+            env=dict(os.environ, GIT_AUTHOR_NAME='Hermes DevOps Bot',
+                GIT_AUTHOR_EMAIL='hermes-devops-bot@users.noreply.github.com',
+                GIT_COMMITTER_NAME='Hermes DevOps Bot',
+                GIT_COMMITTER_EMAIL='hermes-devops-bot@users.noreply.github.com'))
+        print('TOPOLOGY', str(self.repo), repr(['git', *args]),
+            'exit', result.returncode, 'stdout', repr(result.stdout),
+            'stderr', repr(result.stderr), flush=True)
+        if check:
+            self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout.strip() if check else str(result.returncode)
+
+    def setUp(self):
+        fixtures = ROOT.parent/'fixtures'
+        fixtures.mkdir(exist_ok=True)
+        self.temp = tempfile.TemporaryDirectory(prefix='public-topology-', dir=fixtures)
+        self.addCleanup(self.temp.cleanup)
+        self.repo = Path(self.temp.name)
+        self.run_git('init', '--quiet')
+        # Fetch only these existing public objects into an exclusively owned repo.
+        self.run_git('fetch', '--quiet', '--no-tags', str(ROOT), HELPER, self.OLD_HELPER)
+        self.run_git('read-tree', HELPER)
+        # Build the actual selected snapshot's tree without modifying that source.
+        for path in git('ls-files').splitlines():
+            blob = self.run_git('hash-object', '-w', '--stdin', data=(ROOT/path).read_text())
+            self.run_git('update-index', '--add', '--cacheinfo', '100644', blob, path)
+        self.tree = self.run_git('write-tree')
+        self.candidate = self.commit(self.tree, HELPER)
+        self.pr = self.commit(self.tree, HELPER, self.candidate)
+        self.squash = self.run_git('commit-tree', self.tree, '-p', HELPER,
+            data='local production-style squash fixture\n')
+
+    def commit(self, tree, *parents):
+        args = ['commit-tree', tree]
+        for parent in parents:
+            args += ['-p', parent]
+        return self.run_git(*args, data='local topology fixture\n')
+
+    def validate(self, head, helper=HELPER):
+        self.assertEqual(helper, HELPER, 'wrong trusted helper')
+        self.assertEqual(self.run_git('rev-list', '--max-parents=0', head), SEED,
+            'foreign history root')
+        self.assertEqual(set(self.run_git('ls-tree', '-r', '--name-only', SEED).splitlines()),
+            {'README.md', '.gitignore', 'docs/public-source-provenance.md'})
+        self.assertEqual(self.run_git('rev-parse', self.SANITIZED+'^'), SEED)
+        self.assertEqual(self.run_git('merge-base', '--is-ancestor', self.SANITIZED, helper), '')
+        self.assertEqual(self.run_git('merge-base', '--is-ancestor', helper, head), '')
+        for forbidden in ('a238cea4f2b763db21411ecd656cf8cb9e36abbd',
+                          '4295d21ced3a02ef2b82c60f07eb6abcbb3edab9'):
+            self.assertNotEqual(self.run_git('cat-file', '-e', forbidden+'^{commit}',
+                check=False), '0')
+        for path in self.INPUTS:
+            self.assertEqual(self.run_git('ls-tree', helper, '--', path),
+                self.run_git('ls-tree', head, '--', path), 'wrong helper bytes or mode')
+        for operation in OPERATIONS:
+            public_workflow(self.run_git('show', f'{head}:.github/workflows/reusable-{operation}.yml'))
+        self.assertIn(helper, self.run_git('show', f'{head}:docs/shared-delivery.md'))
+        self.assertIn(helper, self.run_git('show', f'{head}:docs/public-source-provenance.md'))
+
+    def test_incremental_pr_and_production_squash_preserve_trusted_helper(self):
+        self.assertEqual(self.run_git('show', '-s', '--format=%P', self.pr),
+            HELPER+' '+self.candidate)
+        self.assertEqual(self.run_git('show', '-s', '--format=%P', self.squash), HELPER)
+        for head in (self.candidate, self.pr, self.squash):
+            with self.subTest(head=head):
+                self.assertEqual(self.run_git('rev-parse', head+'^{tree}'), self.tree)
+                self.validate(head)
+
+    def test_same_tree_does_not_preserve_discarded_feature_helper(self):
+        # The actual protected merge has the reviewed09 tree, not feature74's
+        # consumer tree. Their seven helper inputs, however, are exactly equal.
+        for path in self.INPUTS:
+            self.assertEqual(self.run_git('ls-tree', HELPER, '--', path),
+                self.run_git('ls-tree', self.OLD_HELPER, '--', path))
+        self.assertEqual(self.run_git('merge-base', '--is-ancestor', self.OLD_HELPER,
+            HELPER, check=False), '1')
+        self.assertEqual(self.run_git('merge-base', '--is-ancestor', self.OLD_HELPER,
+            self.squash, check=False), '1')
+        with self.assertRaisesRegex(AssertionError, 'wrong trusted helper'):
+            self.validate(self.squash, self.OLD_HELPER)
+        self.assertEqual(self.run_git('merge-base', '--is-ancestor', HELPER, self.squash), '')
+
+    def test_foreign_root_and_byte_substitution_rejected(self):
+        foreign = self.commit(self.tree)
+        mixed = self.commit(self.tree, HELPER, foreign)
+        for head in (foreign, mixed):
+            with self.subTest(head=head), self.assertRaisesRegex(AssertionError, 'foreign history root'):
+                self.validate(head)
+        self.run_git('read-tree', self.tree)
+        blob = self.run_git('hash-object', '-w', '--stdin', data='foreign helper bytes\n')
+        self.run_git('update-index', '--cacheinfo', '100644', blob, 'docker/Dockerfile')
+        bad = self.commit(self.run_git('write-tree'), HELPER)
+        with self.assertRaisesRegex(AssertionError, 'wrong helper bytes or mode'):
+            self.validate(bad)
+        self.validate(self.squash)
+
+    def test_untrusted_floating_environment_and_wrong_helper_pins_rejected(self):
+        for operation in OPERATIONS:
+            path = f'.github/workflows/reusable-{operation}.yml'
+            text = self.run_git('show', f'{self.squash}:{path}')
+            public_workflow(text)
+            mutations = [text.replace('repository: '+PUBLIC, 'repository: outsider/repo'),
+                text.replace('repository: '+PUBLIC, 'repository: '+PRIVATE),
+                text.replace('ref: '+HELPER, 'ref: main'),
+                text.replace('ref: '+HELPER, 'ref: refs/heads/main'),
+                text.replace('ref: '+HELPER, 'ref: '+self.OLD_HELPER),
+                text.replace('HELPER_SHA: '+HELPER, 'HELPER_SHA: '+self.OLD_HELPER)]
+            for changed in mutations:
+                with self.subTest(operation=operation), self.assertRaises(ValueError):
+                    public_workflow(changed)
+        self.validate(self.squash)
 
 
 if __name__ == '__main__':
